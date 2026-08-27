@@ -1,0 +1,129 @@
+# Flathub submission manifest for Polo, the viewer.
+#
+# This is NOT the manifest used for local bundle builds -- that is
+# io.github.ranrar.Marco.Polo.yml, which build_flatpak_polo.sh drives. The two
+# differ in exactly three ways, all forced by Flathub's rules:
+#
+#   1. No `--share=network` in build-args. Flathub builders have no network;
+#      dependencies come from cargo-sources.json instead.
+#   2. The source is a tagged git commit, not a local `dir`.
+#   3. cargo runs `--offline` against the vendored crates.
+#
+# SUBMIT THIS ONE SECOND, after ../marco/ has been accepted.
+#
+# TWO THINGS TO EXPECT AT REVIEW
+#   1. The five-component app ID. flatpak-builder-lint accepts it: Flathub
+#      derives the ownership URL from components 2 and 3 only, whatever the
+#      length, so io.github.ranrar.Marco.Polo maps to github.com/ranrar/marco.
+#      Human review is a separate gate and has not been tested. If a reviewer
+#      objects, the fallback is creating a Ranrar/Polo repository and switching
+#      to io.github.ranrar.Polo -- a rename of this file, the metainfo, the
+#      desktop file and the icon, before merge. Nothing is published until then.
+#   2. `--filesystem=home`, same exception request as Marco's, same
+#      justification. Polo needs it as much as the editor does: without it,
+#      document-relative images do not render.
+#
+# SUBMITTING
+#   Fork github.com/flathub/flathub WITHOUT "copy the master branch only",
+#   branch off `new-pr`, add this file (renamed to
+#   io.github.ranrar.Marco.Polo.yml) plus a copy of ../cargo-sources.json, and
+#   open a PR against `new-pr` titled "Add io.github.ranrar.Marco.Polo".
+#   Comment `bot, build` to trigger a test build.
+#
+# BEFORE SUBMITTING
+#   - Tag the release and set `tag` + `commit` below to real values.
+#   - Regenerate cargo-sources.json if Cargo.lock changed.
+
+app-id: io.github.ranrar.Marco.Polo
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: markdownviewer
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+
+  # Lets Polo hand a document to Marco with org.freedesktop.Application.Open,
+  # and lets it see whether Marco is installed at all: xdg-dbus-proxy filters
+  # ListActivatableNames to the names the app may talk to, so without this an
+  # installed Marco is invisible and Polo offers to install what the user has.
+  # Narrow and specific -- one name, one direction.
+  - --talk-name=io.github.ranrar.Marco
+
+  # The WebView loads remote images and follows links. RUNTIME access,
+  # unrelated to the build-time network ban.
+  - --share=network
+
+  # Document-relative images and links resolve against the opened file's
+  # directory. The file-chooser portal grants per file, never per directory, so
+  # portals cannot serve this. Reported as
+  # `finish-args-home-filesystem-access`; needs an exception, not a fix.
+  - --filesystem=home
+
+  # No font grants: Flatpak exposes host fonts automatically, and the linter
+  # rejects xdg-config/fontconfig and xdg-data/fonts as unnecessary.
+
+cleanup:
+  - /lib/pkgconfig
+  - /share/gir-1.0
+  - /share/gtk-doc
+
+modules:
+  - name: polo
+    buildsystem: simple
+
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        # cargo-sources.json writes its vendor config to <builddir>/cargo/config,
+        # so CARGO_HOME must point at that directory.
+        CARGO_HOME: /run/build/polo/cargo
+        CARGO_NET_OFFLINE: 'true'
+
+    build-commands:
+      - rm -f rust-toolchain.toml
+
+      # Only the viewer. polo does not depend on the marco crate.
+      - cargo --offline build --release -p polo
+
+      - install -Dm755 target/release/polo /app/bin/markdownviewer
+
+      # is_valid_asset_root() requires icons/, themes/ AND language/ together;
+      # Polo carries its own copy, as two Flatpaks share nothing.
+      - install -d /app/share/markdowncomposer
+      - cp -r marco-shared/src/assets/icons    /app/share/markdowncomposer/
+      - cp -r marco-shared/src/assets/themes   /app/share/markdowncomposer/
+      - cp -r marco-shared/src/assets/language /app/share/markdowncomposer/
+
+      # Basename must equal the app_id of the window it represents; GNOME Shell
+      # matches windows to apps by desktop FILENAME.
+      - install -Dm644 build/linux/flatpak/polo/io.github.ranrar.Marco.Polo.desktop
+          /app/share/applications/io.github.ranrar.Marco.Polo.desktop
+
+      # Polo's own AppStream component -- its <id> and <launchable> are Polo's.
+      - install -Dm644 build/linux/flatpak/polo/io.github.ranrar.Marco.Polo.metainfo.xml
+          /app/share/metainfo/io.github.ranrar.Marco.Polo.metainfo.xml
+
+      # Required by Flathub: $FLATPAK_DEST/share/licenses/$FLATPAK_ID -- Polo's
+      # own ID, not Marco's. The metainfo declares MIT.
+      - install -Dm644 LICENSE
+          /app/share/licenses/io.github.ranrar.Marco.Polo/LICENSE
+
+      - install -Dm644 build/linux/flatpak/polo/icons/io.github.ranrar.Marco.Polo.png
+          /app/share/icons/hicolor/256x256/apps/io.github.ranrar.Marco.Polo.png
+
+      # NOTE: no D-Bus service file. Polo is the caller, never the callee.
+
+    sources:
+      - type: git
+        url: https://github.com/Ranrar/Marco.git
+        # PLACEHOLDER -- set both to the real release before opening the PR.
+        tag: v0.25.0
+        commit: '0000000000000000000000000000000000000000'
+
+      - cargo-sources.json

@@ -212,7 +212,7 @@ cargo llvm-cov --html --open
 cargo build --release -p app
 
 # Package as .deb
-bash build/linux/build_deb.sh
+bash build/linux/debian/build_deb.sh
 ```
 
 The resulting package is in `target/` as `app_<version>_amd64.deb`.
@@ -239,7 +239,7 @@ Versions follow [SemVer](https://semver.org):
 Use the version script to update all crates at once:
 
 ```bash
-bash build/linux/build_deb.sh --version-only --bump minor
+bash build/linux/debian/build_deb.sh --version-only --bump minor
 ```
 
 ---

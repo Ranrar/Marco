@@ -1,13 +1,17 @@
-# Rust
+# Rust bins
 target
 target-windows
 target-linux
 
-# internal dev code
-.claude
-/.VSCodeCounter
-/.dev
+# Build artifacts
+build/installer
+build/linux/flatpak/_build
+build/linux/flatpak/_repo
 
-# Program specefik
-/log
+# internal dev code
+.dev
+.claude
+.VSCodeCounter
+
+# Program specific
 tests/settings/settings.ron

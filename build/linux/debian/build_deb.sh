@@ -4,10 +4,10 @@
 # This script ONLY builds the package. It does not install/uninstall.
 #
 # Usage:
-#   bash build/linux/build_deb.sh
-#   bash build/linux/build_deb.sh --check
-#   bash build/linux/build_deb.sh --version-only
-#   bash build/linux/build_deb.sh --help
+#   bash build/linux/debian/build_deb.sh
+#   bash build/linux/debian/build_deb.sh --check
+#   bash build/linux/debian/build_deb.sh --version-only
+#   bash build/linux/debian/build_deb.sh --help
 
 set -euo pipefail
 
@@ -35,7 +35,9 @@ print_warning() { echo -e "${YELLOW}WARN: $1${NC}"; }
 print_info() { echo -e "${BLUE}INFO: $1${NC}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# This script lives in build/linux/debian/, so the workspace root is three
+# levels up.
+ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$ROOT_DIR"
 
 # Configuration
@@ -80,7 +82,7 @@ show_help() {
 Marco & Polo Debian Package Builder
 
 USAGE:
-    bash build/linux/build_deb.sh [OPTIONS]
+    bash build/linux/debian/build_deb.sh [OPTIONS]
 
 DESCRIPTION:
     Builds a Debian package (.deb) for Marco (editor) and Polo (viewer).
@@ -150,7 +152,7 @@ while [ $# -gt 0 ]; do
             ;;
         *)
             print_error "Unknown option: $1"
-            echo "Use 'bash build/linux/build_deb.sh --help' for usage information"
+            echo "Use 'bash build/linux/debian/build_deb.sh --help' for usage information"
             exit 1
             ;;
     esac
@@ -510,8 +512,8 @@ fi
 print_success "Binaries copied"
 
 print_info "Copying desktop entries..."
-install -m 0644 build/linux/marco.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/${MARCO_INSTALL_NAME}.desktop"
-install -m 0644 build/linux/polo.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/${POLO_INSTALL_NAME}.desktop"
+install -m 0644 build/linux/debian/marco.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/${MARCO_INSTALL_NAME}.desktop"
+install -m 0644 build/linux/debian/polo.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/${POLO_INSTALL_NAME}.desktop"
 print_success "Desktop entries copied"
 
 print_info "Installing system icons..."

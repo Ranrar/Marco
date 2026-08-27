@@ -1,0 +1,152 @@
+# Flatpak manifest for Polo, the viewer.
+#
+# Marco and Polo ship as TWO Flatpaks. This one builds only the viewer; the
+# editor is built by ../marco/io.github.ranrar.Marco.yml. They were separated
+# because the platform assumes one application per app ID.
+#
+# ABOUT THIS APP ID
+#   io.github.ranrar.Marco.Polo has five components, which looks unusual but is
+#   deliberate and valid. Flathub derives an ownership URL from components 2 and
+#   3 only, whatever the ID's length, so this maps to github.com/ranrar/marco --
+#   the repository that already exists. io.github.ranrar.Polo would map to
+#   github.com/ranrar/polo, which does not.
+#
+#   It is also the ID Polo already registered under when the two shipped as one
+#   Flatpak, so its runtime identity is unchanged. polo/src/main.rs::app_id()
+#   still returns it under Flatpak, and MUST keep doing so: the plain APP_ID is
+#   io.github.ranrar.Polo, and a GApplication ID that does not match the sandbox
+#   ID makes WebKit's accessibility check reject the WebView at startup.
+#
+# This manifest is written for LOCAL builds: cargo is allowed network access at
+# build time. A Flathub submission needs offline vendoring instead -- see
+# ../README.md §6.
+#
+# NOTE: the `install` commands below reference build/linux/flatpak/polo/ by
+# name, because that is the directory this manifest lives in. Renaming the
+# directory means updating those paths; build_flatpak_polo.sh checks for this.
+
+app-id: io.github.ranrar.Marco.Polo
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: markdownviewer
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+
+  # Lets Polo hand a document to Marco with org.freedesktop.Application.Open,
+  # and -- just as importantly -- lets it SEE whether Marco is installed at all.
+  # xdg-dbus-proxy filters ListActivatableNames down to the names the app may
+  # talk to, so without this grant an installed Marco is invisible and Polo
+  # would offer to install something the user already has. See
+  # polo/src/marco_link.rs.
+  #
+  # This grant would be a lint error in the old single-Flatpak layout
+  # (finish-args-unnecessary-appid-talk-name fires when the name equals the app
+  # ID, and it was granted by default there). It is correct here precisely
+  # because the app IDs now differ.
+  - --talk-name=io.github.ranrar.Marco
+
+  # The WebView loads remote images and follows links.
+  - --share=network
+
+  # Document-relative images and links resolve against the opened file's
+  # directory, reading sibling files the file-chooser portal never granted. The
+  # portal grants per file, never per directory, so portals cannot serve this
+  # and a document with images in ./images/ would render broken without it.
+  #
+  # Deliberately identical to Marco's grant. Tightening the viewer's permissions
+  # was considered at the split and rejected -- it would have eased review by
+  # breaking the feature.
+  #
+  # flatpak-builder-lint flags this as `finish-args-home-filesystem-access`;
+  # a Flathub submission needs an exception with the justification above.
+  - --filesystem=home
+
+  # No font grants: Flatpak exposes host fonts automatically and the linter
+  # rejects xdg-config/fontconfig and xdg-data/fonts as unnecessary.
+
+cleanup:
+  - /lib/pkgconfig
+  - /share/gir-1.0
+  - /share/gtk-doc
+
+modules:
+  - name: polo
+    buildsystem: simple
+
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/polo/cargo
+      build-args:
+        - --share=network
+
+    build-commands:
+      # The SDK ships a fixed rustc and cannot run rustup. The repo pin
+      # (1.94.1) is a floor, not a ceiling, so drop it and use the SDK's.
+      - rm -f rust-toolchain.toml
+
+      # -p polo builds the viewer and its dependencies (marco-shared,
+      # marco-core) without building the editor, which this Flatpak does not
+      # ship. polo does not depend on the marco crate.
+      - cargo build --release -p polo
+
+      # Installed name matches the Debian package; see
+      # marco-shared/src/paths/mod.rs.
+      - install -Dm755 target/release/polo /app/bin/markdownviewer
+
+      # is_valid_asset_root() requires icons/, themes/ AND language/ TOGETHER --
+      # a partial copy is silently rejected and the app exits at startup. Polo
+      # therefore carries its own full copy (~1.7 MB) rather than a subset;
+      # there is no sharing between two Flatpaks.
+      - install -d /app/share/markdowncomposer
+      - cp -r marco-shared/src/assets/icons    /app/share/markdowncomposer/
+      - cp -r marco-shared/src/assets/themes   /app/share/markdowncomposer/
+      - cp -r marco-shared/src/assets/language /app/share/markdowncomposer/
+
+      # The desktop file's BASENAME must equal the app_id of the window it
+      # represents -- GNOME Shell matches windows to applications by desktop
+      # FILENAME, with StartupWMClass only a secondary hint. Here that basename
+      # finally coincides with this Flatpak's own app ID, which it could not do
+      # while both apps shared one.
+      - install -Dm644 build/linux/flatpak/polo/io.github.ranrar.Marco.Polo.desktop
+          /app/share/applications/io.github.ranrar.Marco.Polo.desktop
+
+      # Polo's own AppStream component. Its <id> and <launchable> are Polo's,
+      # not Marco's -- flatpak-builder-lint requires the launchable to name a
+      # desktop file that exists and matches this app ID.
+      - install -Dm644 build/linux/flatpak/polo/io.github.ranrar.Marco.Polo.metainfo.xml
+          /app/share/metainfo/io.github.ranrar.Marco.Polo.metainfo.xml
+
+      # Flathub requires the licence installed under
+      # $FLATPAK_DEST/share/licenses/$FLATPAK_ID -- Polo's own ID, not Marco's.
+      # Kept in the local manifest too so the two do not drift.
+      - install -Dm644 LICENSE
+          /app/share/licenses/io.github.ranrar.Marco.Polo/LICENSE
+
+      # Pre-generated at exactly 256x256; ImageMagick is not in the SDK.
+      - install -Dm644 build/linux/flatpak/polo/icons/io.github.ranrar.Marco.Polo.png
+          /app/share/icons/hicolor/256x256/apps/io.github.ranrar.Marco.Polo.png
+
+      # NOTE: no D-Bus service file here. Polo is never activated by another
+      # application -- it is the caller, not the callee. Adding DBusActivatable
+      # to its desktop file without a service file would fail `build-export`.
+
+    sources:
+      - type: dir
+        # Four levels up: this manifest sits in build/linux/flatpak/polo/.
+        path: ../../../..
+        skip:
+          - target
+          - target-linux
+          - target-windows
+          - .git
+          - build/installer
+          - build/linux/flatpak/_build
+          - build/linux/flatpak/_repo

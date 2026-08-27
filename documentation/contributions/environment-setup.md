@@ -54,7 +54,7 @@ cargo test --workspace
 Optional package build:
 
 ```bash
-bash build/linux/build_deb.sh --no-bump
+bash build/linux/debian/build_deb.sh --no-bump
 ```
 
 ## Windows dev setup (MSYS2 UCRT64)

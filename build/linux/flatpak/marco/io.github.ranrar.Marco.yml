@@ -1,0 +1,153 @@
+# Flatpak manifest for Marco, the editor.
+#
+# Marco and Polo ship as TWO Flatpaks. This one builds only the editor; the
+# viewer is built by ../polo/io.github.ranrar.Marco.Polo.yml. They were
+# separated because the platform assumes one application per app ID, and two
+# desktop files under one ID collide irreparably in anything that maps a
+# running app to a name.
+#
+# Polo reaches Marco over D-Bus rather than by spawning a sibling binary, which
+# is what makes the separation possible. That needs two things on this side:
+# DBusActivatable=true in the desktop file, and the service file installed
+# below. Neither works without the other.
+#
+# This manifest is written for LOCAL builds: cargo is allowed network access at
+# build time (see build-args below). A Flathub submission additionally requires
+# offline vendoring via cargo-sources.json -- see ../README.md §6.
+#
+# NOTE: the `install` commands below reference build/linux/flatpak/marco/ by
+# name, because that is the directory this manifest lives in. If it is ever
+# renamed, those paths must be updated to match -- build_flatpak_marco.sh
+# checks for this and fails early with a clear message rather than letting the
+# build die inside the sandbox.
+
+app-id: io.github.ranrar.Marco
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: markdowncomposer
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+
+  # NOTE: no --own-name and no --talk-name for Polo. Marco does not reach out to
+  # Polo; the traffic goes the other way, and Polo's manifest carries the
+  # --talk-name grant. Marco owns its own app ID by default, which is all the
+  # org.freedesktop.Application interface needs.
+
+  # The WebView loads remote images and links, and the mention dialog checks
+  # profile URLs over HTTPS.
+  - --share=network
+
+  # Document-relative links and images resolve against the opened file's
+  # directory, reading sibling files the file-chooser portal never granted.
+  # The portal grants per file, never per directory, so portals alone cannot
+  # serve this. See ../README.md §4.
+  #
+  # flatpak-builder-lint flags this as `finish-args-home-filesystem-access`.
+  # That is expected: it is fine for a locally distributed bundle, but a
+  # Flathub submission needs an explicit exception with this justification.
+  - --filesystem=home
+
+  # NOTE: no font grants here on purpose. Flatpak already exposes the host's
+  # fonts and fontconfig to the sandbox automatically, so adding
+  # --filesystem=xdg-config/fontconfig:ro / xdg-data/fonts:ro is redundant and
+  # the linter rejects both as "unnecessary".
+
+cleanup:
+  - /lib/pkgconfig
+  - /share/gir-1.0
+  - /share/gtk-doc
+
+modules:
+  - name: marco
+    buildsystem: simple
+
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/marco/cargo
+      # Local-build convenience: let cargo fetch crates.io and the wry fork.
+      # Flathub builds have no network -- that path needs cargo-sources.json.
+      build-args:
+        - --share=network
+
+    build-commands:
+      # The SDK ships a fixed rustc (1.98.0) and cannot run rustup. The repo
+      # pin (1.94.1) is a floor, not a ceiling, so drop it and use the SDK's.
+      - rm -f rust-toolchain.toml
+
+      # -p marco, not --workspace: this Flatpak ships only the editor, and
+      # building polo here would roughly double the build for a binary that is
+      # then thrown away.
+      - cargo build --release -p marco
+
+      # Installed name matches the Debian package. Upstream the editor binary is
+      # `marco`, but that name collides with the MATE window manager on Debian;
+      # the constants in marco-shared/src/paths/mod.rs follow the renamed form,
+      # so keep it here too rather than touching code.
+      - install -Dm755 target/release/marco /app/bin/markdowncomposer
+
+      # is_valid_asset_root() requires icons/, themes/ AND language/ together;
+      # a partial copy is silently rejected and the app exits at startup.
+      - install -d /app/share/markdowncomposer
+      - cp -r marco-shared/src/assets/icons    /app/share/markdowncomposer/
+      - cp -r marco-shared/src/assets/themes   /app/share/markdowncomposer/
+      - cp -r marco-shared/src/assets/language /app/share/markdowncomposer/
+
+      # The desktop file's BASENAME must equal the app_id of the window it
+      # represents. GNOME Shell matches a window to an application by comparing
+      # the Wayland app_id against installed desktop FILENAMES; StartupWMClass
+      # is only a secondary hint. Renaming this after the binary
+      # (markdowncomposer) was tried and REVERTED: it removed the filename the
+      # shell matches against and the app lost its taskbar icon.
+      - install -Dm644 build/linux/flatpak/marco/io.github.ranrar.Marco.desktop
+          /app/share/applications/io.github.ranrar.Marco.desktop
+      - install -Dm644 build/linux/flatpak/marco/io.github.ranrar.Marco.metainfo.xml
+          /app/share/metainfo/io.github.ranrar.Marco.metainfo.xml
+
+      # Flathub requires the licence installed under
+      # $FLATPAK_DEST/share/licenses/$FLATPAK_ID. Kept in the local manifest too
+      # so the two do not drift. The metainfo declares MIT to match.
+      - install -Dm644 LICENSE
+          /app/share/licenses/io.github.ranrar.Marco/LICENSE
+
+      # Lets the session bus START Marco on demand, which is what Polo's
+      # "open in Marco" needs now that the two are in separate sandboxes and
+      # there is no sibling binary to spawn. Flatpak does NOT generate this from
+      # the desktop file's DBusActivatable=true -- but `build-export` DOES check
+      # the pair: with that key set, a missing service file is a hard error, and
+      # Name= must equal the app ID.
+      - install -Dm644 build/linux/flatpak/marco/io.github.ranrar.Marco.service
+          /app/share/dbus-1/services/io.github.ranrar.Marco.service
+
+      # Pre-generated at exactly 256x256; ImageMagick is not in the SDK.
+      - install -Dm644 build/linux/flatpak/marco/icons/io.github.ranrar.Marco.png
+          /app/share/icons/hicolor/256x256/apps/io.github.ranrar.Marco.png
+
+    sources:
+      - type: dir
+        # Four levels up now, not three: this manifest sits in
+        # build/linux/flatpak/marco/ rather than build/linux/flatpak/.
+        path: ../../../..
+        # Without these the build copies multi-GB of build output and git
+        # history into the sandbox before compiling anything.
+        #
+        # The _build/_repo entries are directories, so they also cover the
+        # per-app subdirectories the build scripts use (_build/marco,
+        # _repo/marco, and Polo's equivalents). Moving those elsewhere means
+        # adding the new paths here, or the build copies its own output back
+        # into the sandbox.
+        skip:
+          - target
+          - target-linux
+          - target-windows
+          - .git
+          - build/installer
+          - build/linux/flatpak/_build
+          - build/linux/flatpak/_repo

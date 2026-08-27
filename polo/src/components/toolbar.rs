@@ -30,6 +30,7 @@ use crate::components::menu::{render_svg_texture, toggle_color_mode};
 use crate::components::sidebar_coordinator::SidebarCoordinator;
 use crate::components::viewer::find_engine::{self, FindOptions};
 use crate::components::viewer::platform_webview::PlatformWebView;
+use crate::marco_link::{self, Marco};
 use gtk4::{
     prelude::*, Align, Box as GtkBox, Button, CheckButton, Label, Orientation, Picture, Revealer,
     RevealerTransitionType, SearchEntry, Separator,
@@ -95,6 +96,39 @@ pub struct PoloToolbarState {
     pub open_find_bar: Rc<dyn Fn()>,
 }
 
+// ── Public helpers ────────────────────────────────────────────────────────
+
+/// Apply the "Open in Marco" button's enabled state and tooltip.
+///
+/// Two things gate the button: a document has to be open, and Marco has to be
+/// reachable at all. That second condition is why this lives in one function
+/// rather than at each call site — `dialog::open_file_and_update_state`
+/// re-enables the button every time a file loads, and would otherwise undo the
+/// gate.
+pub fn apply_marco_state(btn: &Button, has_file: bool) {
+    match marco_link::availability() {
+        // Nothing to offer: Marco is absent and Polo has no way to get it
+        // (see `marco_link::Marco::Missing`). Leave the button dead and say
+        // why, rather than opening a dialog that could only apologise.
+        Marco::Missing => {
+            btn.set_sensitive(false);
+            btn.set_tooltip_text(Some("Marco is not installed"));
+        }
+        // Available and Installable both lead somewhere useful, so the button
+        // stays live and the dialog decides what to offer. The dialog re-checks
+        // availability when it opens, which is what lets installing Marco while
+        // Polo is running take effect without a restart.
+        Marco::Available | Marco::Installable => {
+            btn.set_sensitive(has_file);
+            btn.set_tooltip_text(Some(if has_file {
+                "Open this file in Marco editor"
+            } else {
+                "Open in Marco editor"
+            }));
+        }
+    }
+}
+
 // ── Public constructor ────────────────────────────────────────────────────
 
 /// Build the Polo icon toolbar.
@@ -127,7 +161,7 @@ pub fn create_polo_toolbar(
         .ok()
         .and_then(|g| g.as_ref().cloned())
         .is_some();
-    open_editor_btn.set_sensitive(has_file);
+    apply_marco_state(&open_editor_btn, has_file);
 
     {
         let win_weak = window.downgrade();

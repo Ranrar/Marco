@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2025 Kim Skov Rasmussen -->
+<component type="desktop-application">
+  <id>io.github.ranrar.Marco.Polo</id>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Polo</name>
+  <summary>Read and navigate Markdown documents</summary>
+
+  <developer id="io.github.ranrar">
+    <name>Kim Skov Rasmussen</name>
+  </developer>
+
+  <description>
+    <p>
+      Polo is a lightweight Markdown viewer built in Rust and GTK4. It opens a
+      document and renders it — nothing else. There is no editor, so it starts
+      quickly and stays out of the way when you want to read rather than write.
+    </p>
+    <p>
+      Rendering is identical to the preview in Marco, the companion editor,
+      because both use the same parser. A document looks the same whichever one
+      opens it, including the syntax extensions aimed at technical writing.
+    </p>
+    <p>
+      Polo works on its own and does not require Marco. If Marco is installed,
+      Polo can hand the open document straight to it for editing.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Fast, read-only rendering with no editing surface to get in the way</li>
+      <li>Full CommonMark support, plus Marco's syntax extensions</li>
+      <li>Contents panel for navigating long documents</li>
+      <li>File browser for moving between documents in a folder</li>
+      <li>Find in page</li>
+      <li>Multiple preview themes, light and dark</li>
+      <li>Follows the system light and dark colour scheme</li>
+      <li>Printing</li>
+      <li>Hands the open document to Marco for editing, when Marco is installed</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.ranrar.Marco.Polo.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/Screenshot/polo.png</image>
+      <caption>Reading a document in Polo</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/Screenshot/polo2.png</image>
+      <caption>The contents panel open for navigating a long document</caption>
+    </screenshot>
+  </screenshots>
+
+  <content_rating type="oars-1.1" />
+
+  <url type="homepage">https://github.com/Ranrar/Marco</url>
+  <url type="bugtracker">https://github.com/Ranrar/Marco/issues</url>
+  <url type="vcs-browser">https://github.com/Ranrar/Marco</url>
+
+  <!--
+    Deliberately the same pair as Marco's: the two are one product family and
+    should read that way on their Flathub listings. Change both together, or
+    not at all.
+  -->
+  <branding>
+    <color type="primary" scheme_preference="light">#c8d9e8</color>
+    <color type="primary" scheme_preference="dark">#1f2f3d</color>
+  </branding>
+
+  <releases>
+    <release version="0.25.0" date="2026-08-24">
+      <description>
+        <p>
+          Local link and image paths now resolve against the document, and the
+          preview follows the system colour scheme live. Polo now ships as its
+          own application rather than alongside the editor.
+        </p>
+      </description>
+    </release>
+  </releases>
+</component>

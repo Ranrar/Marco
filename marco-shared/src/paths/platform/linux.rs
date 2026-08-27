@@ -24,6 +24,19 @@ pub(crate) fn asset_root_candidates(exe_parent: &Path) -> Vec<PathBuf> {
     // System-global install (Debian package layout)
     candidates.push(PathBuf::from("/usr/share").join(crate::paths::APP_DIR_NAME));
 
+    // Prefix-relative fallback: <exe_dir>/../share/<APP_DIR_NAME>. Covers any
+    // prefix the literals above miss -- notably Flatpak, which installs under
+    // /app rather than /usr.
+    //
+    // Appended last on purpose. Under the Debian package the executable is
+    // /usr/bin/<name>, so this resolves to /usr/share/<APP_DIR_NAME> -- the
+    // same directory the literal above already covers. Placing it earlier
+    // would promote the system-global tree over a user-local one and silently
+    // change resolution order for .deb installs.
+    if let Some(prefix) = exe_parent.parent() {
+        candidates.push(prefix.join("share").join(crate::paths::APP_DIR_NAME));
+    }
+
     candidates
 }
 
@@ -162,6 +175,60 @@ pub(crate) fn detect_install_location_from_asset_root(asset_root: &Path) -> Inst
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn smoke_test_asset_root_candidates_cover_flatpak_prefix() {
+        // Flatpak installs under /app, which none of the literal candidates
+        // match; without the prefix-relative fallback the app cannot find its
+        // assets and exits at startup.
+        let candidates = asset_root_candidates(Path::new("/app/bin"));
+
+        assert!(
+            candidates.contains(&PathBuf::from("/app/share").join(crate::paths::APP_DIR_NAME)),
+            "expected /app/share/{} among {:?}",
+            crate::paths::APP_DIR_NAME,
+            candidates
+        );
+    }
+
+    #[test]
+    fn smoke_test_asset_root_candidates_keep_deb_resolution_order() {
+        // The .deb installs the executable to /usr/bin, where the
+        // prefix-relative fallback resolves to the same /usr/share directory as
+        // the system-global literal. It must stay last so a user-local asset
+        // tree keeps winning over the system-global one.
+        let candidates = asset_root_candidates(Path::new("/usr/bin"));
+        let system_global = PathBuf::from("/usr/share").join(crate::paths::APP_DIR_NAME);
+
+        let system_global_idx = candidates
+            .iter()
+            .position(|p| *p == system_global)
+            .expect("system-global candidate should be present");
+
+        if let Some(home) = dirs::home_dir() {
+            let user_local = home
+                .join(".local")
+                .join("share")
+                .join(crate::paths::APP_DIR_NAME);
+            let user_local_idx = candidates
+                .iter()
+                .position(|p| *p == user_local)
+                .expect("user-local candidate should be present");
+
+            assert!(
+                user_local_idx < system_global_idx,
+                "user-local must be searched before system-global: {:?}",
+                candidates
+            );
+        }
+
+        assert_eq!(
+            candidates.last(),
+            Some(&system_global),
+            "prefix-relative fallback must be appended last: {:?}",
+            candidates
+        );
+    }
 
     #[test]
     fn smoke_test_detect_portable_mode_from_exe_dir_prefers_config_dir() {

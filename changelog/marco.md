@@ -9,6 +9,16 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 
 ## [Unreleased]
 
+### Added
+- **Flatpak packaging.** Marco now builds as a Flatpak, `io.github.ranrar.Marco`, separately from Polo, which has its own. Not on Flathub yet — for now `build/linux/flatpak/build_flatpak_marco.sh` produces an installable bundle. The `.deb` is unchanged and still ships both applications in one package. _(2026-08-26)_
+- Marco is D-Bus activatable, so Polo can hand it a document and have it start on demand rather than needing to already be running. _(2026-08-26)_
+
+### Changed
+- Updated to `marco-core` 1.3.3. _(2026-08-26)_
+
+### Fixed
+- Marco finds its assets under any install prefix, not just the two that were hardcoded. The search now also tries `<exe_dir>/../share/`, which is what makes a Flatpak install work — it lands under `/app`, matching neither literal path, and the editor exited at startup rather than starting without themes. The new candidate is searched last, so a `.deb` install still prefers a user-local asset tree over the system one. _(2026-08-26)_
+
 ## [0.25.0] - 2026-08-20
 
 _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 2d34df7 (2026-08-18), plus the fixes dated 2026-08-20 below._

@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/RTL_%2B_Unicode-Ready-blue?style=for-the-badge&logo=translate&logoColor=white" alt="RTL and Unicode Ready" />
   <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Written in Rust" />
   <img src="https://img.shields.io/github/license/Ranrar/Marco?style=for-the-badge" alt="License" />
-  <img src="https://img.shields.io/badge/Version-0.24.1-blue?style=for-the-badge" alt="Version 0.24.1" />
+  <img src="https://img.shields.io/badge/Version-0.24.1-blue?style=for-the-badge" alt="Version 0.25.0" />
   <a href="https://crates.io/crates/marco-core"><img src="https://img.shields.io/crates/v/marco-core?style=for-the-badge&label=marco-core&logo=rust" alt="marco-core on crates.io" /></a>
 </p>
 
@@ -20,15 +20,23 @@
 Both run natively on **Linux and Windows**, built with **GTK4 and Rust**, designed for speed, clarity, and modern technical writing — with features like **executable code blocks**, **document navigation**, and **structured formatting**.
 
 <p align="center">
-  <img src="documentation/Screenshot/marco.png" alt="Marco Editor" />
+  <img src="https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/Screenshot/marco.png" alt="Marco Editor" />
   <br/>
-  <img src="documentation/Screenshot/marco2.png" alt="Marco Editor" />
+  <img src="https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/Screenshot/marco2.png" alt="Marco Editor" />
   <br/>
   <em>Marco - Full-featured Markdown editor with live preview</em>
 </p>
 
 <p align="center">
-  <img src="documentation/Screenshot/polo.png" alt="Polo Viewer" />
+  <img src="https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/Screenshot/marco-rtl.png" alt="Marco with right-to-left text direction" />
+  <br/>
+  <em>Marco - Right-to-left text direction, toggled live</em>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/Screenshot/polo.png" alt="Polo Viewer" />
+  <br/>
+  <img src="https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/Screenshot/polo2.png" alt="Polo Viewer" />
   <br/>
   <em>Polo - Lightweight Markdown viewer</em>
 </p>
@@ -47,6 +55,8 @@ Ready to try Marco? Installation is simple and takes less than a minute:
 
 > **Windows: portable instead?** The `markdown-composer-and-viewer_<version>_windows_amd64.zip` asset still ships. Extract it anywhere and run `marco.exe` or `polo.exe` — a portable copy keeps its settings in the extracted folder, so the whole thing travels on a USB stick and leaves nothing behind.
 
+> **Linux: Flatpak.** Not on Flathub yet, and not in the release assets — for now you build the bundles yourself with `build/linux/flatpak/build_flatpak_marco.sh` and `build_flatpak_polo.sh`. Note that unlike the `.deb`, which ships both applications in one package, **Marco and Polo are two separate Flatpaks** (`io.github.ranrar.Marco` and `io.github.ranrar.Marco.Polo`). Install either on its own, or both — with both present, each can hand the open document to the other. See [build/linux/flatpak/README.md](build/linux/flatpak/README.md).
+
 ## Use the parser as a library
 
 Marco's parser, AST, HTML renderer, and language-intelligence features are now published as a standalone crate on crates.io:
@@ -55,7 +65,7 @@ Marco's parser, AST, HTML renderer, and language-intelligence features are now p
 
 ```toml
 [dependencies]
-marco-core = "1.0.2"
+marco-core = "1.3.3"
 ```
 
 ```rust
@@ -69,19 +79,15 @@ let html = render(&doc, &RenderOptions::default())?;
 
 ## What can you use Marco & Polo for?
 
-| Use Case | Marco (Editor) | Polo (Viewer) |
-|---|:---:|:---:|
-| Technical documentation & manuals | Yes | Yes |
-| Research papers (math, footnotes, references) | Yes | Yes |
-| Books & long-form writing | Yes | Yes |
-| Presentations & slide decks | Yes | Yes |
-| README & project documentation | Yes | Yes |
-| Blog posts & articles | Yes | Yes |
-| API documentation | Yes | Yes |
-| Meeting notes & minutes | Yes | Yes |
-| Knowledge base & personal wiki | Yes | Yes |
-| Release notes & changelogs | Yes | Yes |
-| Study notes & course material | Yes | Yes |
+Anything you would write in Markdown, and a few things you might not have tried to.
+Marco is built for documents that outgrow a simple editor: technical documentation and
+manuals, research papers with math, footnotes and references, books and other long-form
+writing, slide decks, API docs and project READMEs, meeting notes, changelogs, study
+material, and a personal wiki held together by cross-file links.
+
+Polo renders all of it identically — it shares Marco's parser and preview engine — so
+anything you write in the editor reads the same in the viewer. The difference is what
+each is for: Marco writes, Polo reads.
 
 ## Features at a glance
 
@@ -135,7 +141,7 @@ It's built for developers, engineers, and writers who need:
 - **Native performance** — no login, no cloud, your documents stay on your machine
 - **Structured documents** — full control over headings, blocks, and formatting  
 - **Custom Markdown grammar** — hand-crafted parser for extensibility and AST-level control  
-- **Seamless preview** — rendered with WebKit and perfectly synced with the editor  
+- **Seamless preview** — rendered perfectly synced with the editor  
 
 Whether you're writing technical docs, tutorials, or long-form text, Marco turns Markdown into a professional writing tool — fast, clear, and extensible.
 
@@ -170,7 +176,7 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 
 ## Roadmap
 
-### core Parser & Language Features
+### Core Parser & Language Features
 - [x] Syntax highlighting in editor (via intelligence engine)
 - [x] Diagnostic underlines — issue detection with hover details and footer panel
 - [x] Hover insights — Markdown element info and diagnostic details at cursor
@@ -197,8 +203,8 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 - [x] Local link prompt — click a `.md` link in the preview to open it in Polo
 - [x] Document navigation: TOC sidebar (collapsible, click-to-scroll)
 - [x] Native Windows and Linux Print option
-- [ ] Search function
-- [ ] Mouse over link information
+- [x] Search function
+- [x] Mouse over link information
 
 ### Document Features
 - [x] Smart code blocks with programming languages syntax
@@ -210,6 +216,8 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 - [x] Document navigation: bookmarks
 - [x] Document navigation: cross-file links (local link prompt in preview)
 - [ ] Document presentation mode
+- [ ] Embed images in *.md as Base64 images
+- [ ] Save as an `*.mdx` / `*.mdz` archive — a single compressed file bundling the document with its embedded images
 
 ### Advanced Features
 - [x] UI language plugin system — swappable translation files, with region-qualified variants (e.g. `zh-CN` / `zh-TW`) for macrolanguages that need them
@@ -220,8 +228,8 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 ### Distribution & Platform
 - [x] Cross-platform support: Linux and Windows builds
 - [x] Linux packaging: .deb packages
+- [x] Linux packaging: Flatpak bundles — Marco and Polo as two separate apps
 - [x] Windows packaging: Inno Setup installer (`_setup.exe`) and portable .zip packages
-- [ ] Additional packaging: Snap
 
 ### Opt-in Telemetry
 - [ ] Privacy-first telemetry (opt-in, disabled by default)
@@ -237,6 +245,8 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
   - **Purpose**: Prioritize development on most-used features, fix critical bugs faster
   - **Transmission**: Lightweight HTTPS endpoint, 3-second timeout, non-blocking
 
+### Other
+- [ ] Website
 
 ## Contributing
 
@@ -244,7 +254,7 @@ We welcome contributions of all sizes. See [CONTRIBUTING.md](CONTRIBUTING.md) fo
 
 ## AI-assisted development
 
-This project is developed with occasional help from AI tools (for example, Copilot-style code suggestions). AI can speed up prototyping and refactors, but:
+This project is developed with help from AI tools. AI can speed up prototyping and refactors, but:
 
 - Changes are still reviewed by a human.
 - Tests and linting are expected to pass before merging.

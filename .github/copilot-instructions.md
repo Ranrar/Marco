@@ -192,7 +192,7 @@ cargo build --workspace # All workspace crates (marco-shared, marco, polo)
 #### Version tracking (single source of truth)
 - **Do not** hand-edit crate versions in multiple places.
 - Use `build/version.json` as the single version source for the workspace crates (`marco-shared`, `marco`, `polo`).
-- `build/linux/build_deb.sh` is responsible for (optionally) bumping versions and syncing them into:
+- `build/linux/debian/build_deb.sh` is responsible for (optionally) bumping versions and syncing them into:
     - `marco-shared/Cargo.toml`
     - `marco/Cargo.toml`
     - `polo/Cargo.toml`
@@ -213,18 +213,18 @@ cargo build --workspace # All workspace crates (marco-shared, marco, polo)
 | `polo` | `0.x.y` — app versioning | Binary release; no API contract |
 
 #### Automated version bump (recommended)
-- Prefer using `build/linux/build_deb.sh` to bump versions and sync app `Cargo.toml` files.
+- Prefer using `build/linux/debian/build_deb.sh` to bump versions and sync app `Cargo.toml` files.
 - For version changes without building a `.deb`, use:
-    - `bash build/linux/build_deb.sh --version-only` (patch bump)
-    - `bash build/linux/build_deb.sh --version-only --bump minor|major`
-    - `bash build/linux/build_deb.sh --version-only --set X.Y.Z`
+    - `bash build/linux/debian/build_deb.sh --version-only` (patch bump)
+    - `bash build/linux/debian/build_deb.sh --version-only --bump minor|major`
+    - `bash build/linux/debian/build_deb.sh --version-only --set X.Y.Z`
 - To upgrade the consumed `marco-core` version, edit the workspace `Cargo.toml`
   manually, run `cargo update -p marco-core`, and add a note to `changelog/marco.md` / `changelog/polo.md`.
 
 #### Release workflow (repo practice)
 For a real release commit:
 1. Update the changelogs (`changelog/marco.md`, `changelog/polo.md`) — only update the ones that changed.
-2. Bump versions via `build/linux/build_deb.sh` (recommended: `--version-only`).
+2. Bump versions via `build/linux/debian/build_deb.sh` (recommended: `--version-only`).
    - `--version-only --set X.Y.Z`
 3. Run tests (`cargo test --workspace --locked`).
 4. Commit the changelog + version changes.
@@ -260,7 +260,7 @@ version = "2.0.0+build.123"
 
 #### Debian packaging (Linux)
 Debian packaging assets and scripts live in `build/linux/`.
-Primary entry point: `build/linux/build_deb.sh`
+Primary entry point: `build/linux/debian/build_deb.sh`
     - Builds the workspace and produces a `.deb` (markdown-composer-and-viewer package) using the versions from `build/version.json`.
     - Supports flags to control version bumping (for example, CI uses a no-bump mode so builds don't mutate versions).
 

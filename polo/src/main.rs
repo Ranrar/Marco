@@ -37,6 +37,7 @@
 //! ```
 
 mod components;
+mod marco_link;
 
 use components::css::load_css_from_path;
 use components::file_tree_panel::create_file_tree_panel;
@@ -54,6 +55,38 @@ use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 const APP_ID: &str = "io.github.ranrar.Polo";
+
+/// Application ID used when running inside Flatpak.
+///
+/// Polo's Flatpak is `io.github.ranrar.Marco.Polo`, and this must match it
+/// exactly: WebKitGTK derives its sandboxed web-process bus name from the
+/// application ID, and the accessibility portal rejects any name not prefixed
+/// by the Flatpak app ID, killing the web process and taking Polo down with it:
+///
+/// ```text
+/// Portal call failed: Invalid sandbox a11y own name:
+/// 'io.github.ranrar.Polo.Sandboxed.WebProcess-...' doesn't match app id
+/// ```
+///
+/// A `--own-name` grant in the manifest does not help — that fixes session-bus
+/// registration, while this check compares against the application ID itself.
+#[cfg(target_os = "linux")]
+const APP_ID_FLATPAK: &str = "io.github.ranrar.Marco.Polo";
+
+/// The application ID to register with.
+///
+/// Flatpak always mounts `/.flatpak-info` inside the sandbox, so its presence
+/// is the standard way to detect that we are running in one. Outside Flatpak
+/// this returns [`APP_ID`] unchanged, leaving the .deb and Windows builds on
+/// their existing ID.
+fn app_id() -> &'static str {
+    #[cfg(target_os = "linux")]
+    if std::path::Path::new("/.flatpak-info").exists() {
+        return APP_ID_FLATPAK;
+    }
+
+    APP_ID
+}
 
 /// Centralized fatal error handler
 ///
@@ -181,7 +214,7 @@ fn main() -> glib::ExitCode {
     // Icon font support removed - icon fonts (IcoMoon) are no longer used; use inline SVGs instead.
 
     let app = Application::builder()
-        .application_id(APP_ID)
+        .application_id(app_id())
         .flags(gio::ApplicationFlags::HANDLES_OPEN | gio::ApplicationFlags::HANDLES_COMMAND_LINE)
         .build();
 
@@ -353,7 +386,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     window.add_css_class(&format!("marco-theme-{}", current_theme_mode));
     log::debug!("Applied theme class: marco-theme-{}", current_theme_mode);
 
-    // Set window icon (GTK will look for icon named "markdownviewer" — matches build/linux/build_deb.sh and polo.desktop)
+    // Set window icon (GTK will look for icon named "markdownviewer" — matches build/linux/debian/build_deb.sh and polo.desktop)
     window.set_icon_name(Some("markdownviewer"));
 
     // Create platform WebView for markdown preview

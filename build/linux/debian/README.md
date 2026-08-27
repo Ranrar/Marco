@@ -6,7 +6,7 @@ Debian package builder for Marco markdown editor.
 
 ```bash
 # Build package (compiles binaries and creates .deb)
-bash build/linux/build_deb.sh --no-bump
+bash build/linux/debian/build_deb.sh --no-bump
 
 # Output: build/installer/markdowncomposerandviewer_<version>_linux_amd64.deb
 ```
@@ -24,25 +24,25 @@ bash build/linux/build_deb.sh --no-bump
 
 ### Standard Build (No Version Bump)
 ```bash
-bash build/linux/build_deb.sh --no-bump
+bash build/linux/debian/build_deb.sh --no-bump
 ```
 
 ### Check Dependencies Only
 ```bash
-bash build/linux/build_deb.sh --check
+bash build/linux/debian/build_deb.sh --check
 ```
 
 ### Version Management
 
 ```bash
 # Update version and sync Cargo.toml (no build)
-bash build/linux/build_deb.sh --version-only --bump patch
+bash build/linux/debian/build_deb.sh --version-only --bump patch
 
 # Set specific version
-bash build/linux/build_deb.sh --set 1.0.0
+bash build/linux/debian/build_deb.sh --set 1.0.0
 
 # Bump and build
-bash build/linux/build_deb.sh --bump minor
+bash build/linux/debian/build_deb.sh --bump minor
 ```
 
 ## Dependencies
@@ -134,7 +134,7 @@ GitHub Actions workflow (`.github/workflows/release.yml`):
 ```yaml
 - name: Build Debian package
   run: |
-    bash build/linux/build_deb.sh --no-bump
+    bash build/linux/debian/build_deb.sh --no-bump
 ```
 
 Workflow:
@@ -173,7 +173,7 @@ The build script:
 ### Missing Dependencies
 ```bash
 # Check what's missing
-bash build/linux/build_deb.sh --check
+bash build/linux/debian/build_deb.sh --check
 
 # Install missing packages
 sudo apt-get install <missing-package>
@@ -183,7 +183,7 @@ sudo apt-get install <missing-package>
 ```bash
 # Clean and rebuild
 cargo clean
-bash build/linux/build_deb.sh --no-bump
+bash build/linux/debian/build_deb.sh --no-bump
 ```
 
 ### Package Won't Install
@@ -224,7 +224,7 @@ Launch from:
 
 ```bash
 # View all options
-bash build/linux/build_deb.sh --help
+bash build/linux/debian/build_deb.sh --help
 ```
 
 Key options:
