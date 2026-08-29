@@ -77,7 +77,9 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends flatpak
+          # dbus-daemon is for dbus-run-session; see the build step for why a
+          # session bus is not optional here.
+          sudo apt-get install -y --no-install-recommends flatpak dbus-daemon
 
           # User installation throughout, matching the local build scripts.
           flatpak remote-add --user --if-not-exists \
@@ -170,8 +172,19 @@ jobs:
           set -euo pipefail
           # --filesystem=host: the builder is a sandboxed app and the workspace
           # lives outside the paths it is granted by default.
+          #
+          # dbus-run-session is REQUIRED, not defensive. flatpak-builder runs
+          # inside the org.flatpak.Builder sandbox and proxies every flatpak
+          # call back to the host over the org.freedesktop.Flatpak session-bus
+          # service. A runner has no session bus, so those calls fail with
+          # "Cannot autolaunch D-Bus without X11 $DISPLAY".
+          #
+          # --disable-rofiles-fuse: rofiles-fuse cannot get a FUSE fd from
+          # inside the Builder's own sandbox. It is a build-cache optimisation.
+          dbus-run-session -- \
           flatpak run --filesystem=host org.flatpak.Builder \
             --force-clean \
+            --disable-rofiles-fuse \
             --user \
             --install-deps-from=flathub \
             --repo="${RUNNER_TEMP}/repo" \

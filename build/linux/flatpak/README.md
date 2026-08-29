@@ -188,6 +188,17 @@ matches `DBusActivatable=` — installed for Marco, absent for Polo. A partial
 asset root is rejected silently at startup rather than at build time, which is
 the failure this catches.
 
+Two things every runner needs, and neither is obvious from a working local
+build. `flatpak-builder` runs inside the `org.flatpak.Builder` sandbox and
+proxies every flatpak call back to the host over the `org.freedesktop.Flatpak`
+**session-bus** service — `flatpak info`, `build-init`, dependency installs, all
+of it. A runner has no session bus, so all of them fail with `Cannot autolaunch
+D-Bus without X11 $DISPLAY` before the build starts; `dbus-run-session --` in
+front of the command gives it one to activate on. Then `--disable-rofiles-fuse`,
+because `rofiles-fuse` cannot get a FUSE fd from inside the Builder's own
+sandbox (`file descriptor 4 is not a socket`). It is only a build-cache
+optimisation, so dropping it costs nothing.
+
 `flatpak-release-marco.yml` and `flatpak-release-polo.yml` are **manual**, one
 app per workflow, **`workflow_dispatch` only** — releases are cut by hand and
 nothing there tags or publishes.
