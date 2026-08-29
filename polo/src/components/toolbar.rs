@@ -114,11 +114,9 @@ pub fn apply_marco_state(btn: &Button, has_file: bool) {
             btn.set_sensitive(false);
             btn.set_tooltip_text(Some("Marco is not installed"));
         }
-        // Available and Installable both lead somewhere useful, so the button
-        // stays live and the dialog decides what to offer. The dialog re-checks
-        // availability when it opens, which is what lets installing Marco while
-        // Polo is running take effect without a restart.
-        Marco::Available | Marco::Installable => {
+        // The dialog re-checks availability when it opens, which is what lets
+        // installing Marco while Polo is running take effect without a restart.
+        Marco::Available => {
             btn.set_sensitive(has_file);
             btn.set_tooltip_text(Some(if has_file {
                 "Open this file in Marco editor"

@@ -34,13 +34,10 @@
 //!   - **Available** — two ways to hand the document over:
 //!     - **DualView**: Close Polo, open Marco with editor + preview
 //!     - **Editor and View Separate**: Keep Polo open, also launch Marco
-//!   - **Installable** — Marco is not installed, so the dialog offers
-//!     **Install Marco** instead of two buttons that could only fail
 //!   - **Missing** — nothing to offer; the toolbar button stays insensitive and
 //!     this dialog does not open
 //!
-//! Finding and launching Marco itself lives in `crate::marco_link`, which covers
-//! both the sibling-binary case and the separate-Flatpak case.
+//! Finding and launching Marco itself lives in `crate::marco_link`.
 //!
 //! ## Error Handling
 //!
@@ -263,15 +260,11 @@ pub fn show_open_file_dialog(
 pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     // Checked here rather than once at startup, so installing Marco while Polo
     // is running takes effect the next time this dialog opens.
-    let availability = marco_link::availability();
-
-    if availability == Marco::Missing {
+    if marco_link::availability() == Marco::Missing {
         // `toolbar::apply_marco_state` keeps the button insensitive in this
         // state, so this is only reachable if some other call site appears.
         // There is nothing to offer, so offer nothing.
-        log::warn!(
-            "Open in Marco requested, but Marco is not installed and cannot be installed from here"
-        );
+        log::warn!("Open in Marco requested, but Marco is not installed");
         return;
     }
 
@@ -302,10 +295,7 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     headerbar.set_show_title_buttons(false); // We'll add custom close button
 
     // Set title in headerbar
-    let title_label = Label::new(Some(match availability {
-        Marco::Available => "Open in Marco Editor",
-        _ => "Marco is not installed",
-    }));
+    let title_label = Label::new(Some("Open in Marco Editor"));
     title_label.set_valign(Align::Center);
     title_label.add_css_class("title-label"); // Shared class for Marco's menu.css
     title_label.add_css_class("polo-title-label"); // Polo-specific class
@@ -481,13 +471,7 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     vbox.add_css_class("polo-dialog-content");
 
     // Message (removed duplicate title since it's now in titlebar)
-    let message = Label::new(Some(match availability {
-        Marco::Available => "Choose how to open this file in Marco:",
-        _ => {
-            "Marco is the editor for these documents, and it is not installed. \
-              Install it to open this file for editing."
-        }
-    }));
+    let message = Label::new(Some("Choose how to open this file in Marco:"));
     message.add_css_class("polo-dialog-message");
     message.set_halign(Align::Start);
     message.set_wrap(true);
@@ -498,45 +482,18 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     let button_box = Box::new(Orientation::Vertical, 8);
     button_box.add_css_class("polo-dialog-button-box");
 
-    // The two handover buttons exist only when there is something to hand over
-    // to; otherwise the dialog offers the way to get Marco instead.
-    let handover_buttons = match availability {
-        Marco::Available => {
-            // DualView button (primary action)
-            let btn_dualview = Button::with_label("DualView");
-            btn_dualview.add_css_class("polo-dialog-button");
-            btn_dualview.add_css_class("primary");
-            btn_dualview.set_tooltip_text(Some("Close Polo and open Marco with editor + preview"));
-            button_box.append(&btn_dualview);
+    // DualView button (primary action)
+    let btn_dualview = Button::with_label("DualView");
+    btn_dualview.add_css_class("polo-dialog-button");
+    btn_dualview.add_css_class("primary");
+    btn_dualview.set_tooltip_text(Some("Close Polo and open Marco with editor + preview"));
+    button_box.append(&btn_dualview);
 
-            // Editor and View Separate button
-            let btn_separate = Button::with_label("Editor and View Separate");
-            btn_separate.add_css_class("polo-dialog-button");
-            btn_separate.set_tooltip_text(Some("Keep Polo open and also open Marco editor"));
-            button_box.append(&btn_separate);
-
-            Some((btn_dualview, btn_separate))
-        }
-        _ => {
-            let btn_install = Button::with_label("Install Marco");
-            btn_install.add_css_class("polo-dialog-button");
-            btn_install.add_css_class("primary");
-            btn_install.set_tooltip_text(Some("Open Marco's page on Flathub"));
-            button_box.append(&btn_install);
-
-            let dialog_weak_for_install = dialog.downgrade();
-            btn_install.connect_clicked(move |_| {
-                if let Err(e) = marco_link::install() {
-                    log::error!("{e}");
-                }
-                if let Some(dialog) = dialog_weak_for_install.upgrade() {
-                    dialog.close();
-                }
-            });
-
-            None
-        }
-    };
+    // Editor and View Separate button
+    let btn_separate = Button::with_label("Editor and View Separate");
+    btn_separate.add_css_class("polo-dialog-button");
+    btn_separate.set_tooltip_text(Some("Keep Polo open and also open Marco editor"));
+    button_box.append(&btn_separate);
 
     // Cancel button container (separate with spacing)
     let cancel_container = Box::new(Orientation::Horizontal, 0);
@@ -557,56 +514,43 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     let window_weak = window.downgrade();
     let dialog_weak = dialog.downgrade();
 
-    if let Some((btn_dualview, btn_separate)) = handover_buttons {
-        // DualView - hand the document over, then close Polo once Marco has it.
-        //
-        // Polo is closed from INSIDE the completion callback on purpose. Under
-        // Flatpak the handover is an asynchronous D-Bus call, and tearing down
-        // the bus connection beside it could drop the message with the document
-        // still buffered. It also means a failed handover leaves Polo open
-        // rather than leaving the user with nothing at all.
-        let file_path_clone = file_path.clone();
-        let window_weak_clone = window_weak.clone();
-        let dialog_weak_clone = dialog_weak.clone();
-        btn_dualview.connect_clicked(move |_| {
-            log::info!("DualView selected - handing the document to Marco");
+    // DualView - hand the document over, then close Polo once Marco has it.
+    // Polo is only closed on success, so a failed handover leaves the user with
+    // the document still open rather than with nothing at all.
+    let file_path_clone = file_path.clone();
+    let window_weak_clone = window_weak.clone();
+    let dialog_weak_clone = dialog_weak.clone();
+    btn_dualview.connect_clicked(move |_| {
+        log::info!("DualView selected - handing the document to Marco");
 
-            let window_weak = window_weak_clone.clone();
-            let dialog_weak = dialog_weak_clone.clone();
-            marco_link::open(&file_path_clone, move |result| {
-                match result {
-                    Ok(()) => {
-                        if let Some(window) = window_weak.upgrade() {
-                            window.close();
-                        }
-                    }
-                    Err(e) => log::error!("Failed to open in Marco, keeping Polo open: {e}"),
+        match marco_link::open(&file_path_clone) {
+            Ok(()) => {
+                if let Some(window) = window_weak_clone.upgrade() {
+                    window.close();
                 }
+            }
+            Err(e) => log::error!("Failed to open in Marco, keeping Polo open: {e}"),
+        }
 
-                if let Some(dialog) = dialog_weak.upgrade() {
-                    dialog.close();
-                }
-            });
-        });
+        if let Some(dialog) = dialog_weak_clone.upgrade() {
+            dialog.close();
+        }
+    });
 
-        // Editor and View Separate - hand over, keep Polo open either way.
-        let file_path_clone = file_path.clone();
-        let dialog_weak_clone = dialog_weak.clone();
-        btn_separate.connect_clicked(move |_| {
-            log::info!("EditorAndViewSeparate selected - handing the document to Marco");
+    // Editor and View Separate - hand over, keep Polo open either way.
+    let file_path_clone = file_path.clone();
+    let dialog_weak_clone = dialog_weak.clone();
+    btn_separate.connect_clicked(move |_| {
+        log::info!("EditorAndViewSeparate selected - handing the document to Marco");
 
-            let dialog_weak = dialog_weak_clone.clone();
-            marco_link::open(&file_path_clone, move |result| {
-                if let Err(e) = result {
-                    log::error!("Failed to open in Marco: {e}");
-                }
+        if let Err(e) = marco_link::open(&file_path_clone) {
+            log::error!("Failed to open in Marco: {e}");
+        }
 
-                if let Some(dialog) = dialog_weak.upgrade() {
-                    dialog.close();
-                }
-            });
-        });
-    }
+        if let Some(dialog) = dialog_weak_clone.upgrade() {
+            dialog.close();
+        }
+    });
 
     // Cancel button
     let dialog_weak_clone = dialog_weak.clone();
@@ -875,5 +819,4 @@ where
 }
 
 // `launch_marco` lived here. Finding and reaching Marco now lives in
-// `crate::marco_link`, which handles both the sibling-binary case and the
-// separate-Flatpak case, and can report that Marco is not installed at all.
+// `crate::marco_link`, which can also report that Marco is not installed at all.

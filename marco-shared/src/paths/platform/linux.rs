@@ -25,8 +25,8 @@ pub(crate) fn asset_root_candidates(exe_parent: &Path) -> Vec<PathBuf> {
     candidates.push(PathBuf::from("/usr/share").join(crate::paths::APP_DIR_NAME));
 
     // Prefix-relative fallback: <exe_dir>/../share/<APP_DIR_NAME>. Covers any
-    // prefix the literals above miss -- notably Flatpak, which installs under
-    // /app rather than /usr.
+    // install prefix the literals above miss -- an /opt tree, a staged install,
+    // anything rooted somewhere other than /usr.
     //
     // Appended last on purpose. Under the Debian package the executable is
     // /usr/bin/<name>, so this resolves to /usr/share/<APP_DIR_NAME> -- the
@@ -177,15 +177,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn smoke_test_asset_root_candidates_cover_flatpak_prefix() {
-        // Flatpak installs under /app, which none of the literal candidates
-        // match; without the prefix-relative fallback the app cannot find its
-        // assets and exits at startup.
-        let candidates = asset_root_candidates(Path::new("/app/bin"));
+    fn smoke_test_asset_root_candidates_cover_custom_prefix() {
+        // An install under a prefix like /opt matches none of the literal
+        // candidates; without the prefix-relative fallback the app cannot find
+        // its assets and exits at startup.
+        let candidates = asset_root_candidates(Path::new("/opt/marco/bin"));
 
         assert!(
-            candidates.contains(&PathBuf::from("/app/share").join(crate::paths::APP_DIR_NAME)),
-            "expected /app/share/{} among {:?}",
+            candidates
+                .contains(&PathBuf::from("/opt/marco/share").join(crate::paths::APP_DIR_NAME)),
+            "expected /opt/marco/share/{} among {:?}",
             crate::paths::APP_DIR_NAME,
             candidates
         );

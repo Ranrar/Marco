@@ -55,8 +55,6 @@ Ready to try Marco? Installation is simple and takes less than a minute:
 
 > **Windows: portable instead?** The `markdown-composer-and-viewer_<version>_windows_amd64.zip` asset still ships. Extract it anywhere and run `marco.exe` or `polo.exe` — a portable copy keeps its settings in the extracted folder, so the whole thing travels on a USB stick and leaves nothing behind.
 
-> **Linux: Flatpak.** Not on Flathub yet, and not in the release assets — for now you build the bundles yourself with `build/linux/flatpak/build_flatpak_marco.sh` and `build_flatpak_polo.sh`. Note that unlike the `.deb`, which ships both applications in one package, **Marco and Polo are two separate Flatpaks** (`io.github.ranrar.Marco` and `io.github.ranrar.Marco.Polo`). Install either on its own, or both — with both present, each can hand the open document to the other. See [build/linux/flatpak/README.md](build/linux/flatpak/README.md).
-
 ## Use the parser as a library
 
 Marco's parser, AST, HTML renderer, and language-intelligence features are now published as a standalone crate on crates.io:
@@ -228,7 +226,6 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 ### Distribution & Platform
 - [x] Cross-platform support: Linux and Windows builds
 - [x] Linux packaging: .deb packages
-- [x] Linux packaging: Flatpak bundles — Marco and Polo as two separate apps
 - [x] Windows packaging: Inno Setup installer (`_setup.exe`) and portable .zip packages
 
 ### Opt-in Telemetry

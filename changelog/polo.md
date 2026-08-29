@@ -10,15 +10,14 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ## [Unreleased]
 
 ### Added
-- **"Open in Marco" when Marco is not installed.** The action previously assumed the editor was sitting next to the viewer, because it always was. Polo now checks whether Marco can actually be reached, and the dialog says what it finds: with Marco present you still get **DualView** and **Editor and View Separate**; without it you get **Install Marco**, which opens Marco's store page. The check runs each time the dialog opens, so installing Marco while Polo is running takes effect on the next click — no restart needed. Where Marco is neither present nor installable, the toolbar button stays greyed out and its tooltip explains why, instead of failing silently when clicked. _(2026-08-26)_
+- **"Open in Marco" says so when Marco is not installed.** The action previously assumed the editor was sitting next to the viewer, because it always was; clicking it with no editor there did nothing and explained nothing. Polo now looks for Marco — beside its own executable, then along `PATH` — before offering the action. With Marco present you still get **DualView** and **Editor and View Separate**; without it the toolbar button is greyed out and its tooltip says why. The check runs afresh each time, so installing Marco while Polo is open takes effect on the next click, with no restart. _(2026-08-26)_
 
 ### Changed
-- **Polo hands documents to Marco over D-Bus** rather than by spawning a sibling binary. Off Flatpak nothing observable changes — it still finds the editor next to itself or on `PATH`. Under Flatpak the two now live in separate sandboxes with no shared filesystem, so there is no binary to spawn; the handover goes through `org.freedesktop.Application.Open`, which starts Marco if it is not already running. _(2026-08-26)_
-- DualView now closes Polo only once Marco has actually accepted the document. The handover is asynchronous under Flatpak, and closing beside it risked dropping the message with the document still buffered. A handover that fails now leaves Polo open rather than leaving you with nothing. _(2026-08-26)_
+- DualView now closes Polo only once Marco has actually started. If the editor cannot be launched, Polo stays open with the document still on screen rather than closing and leaving you with nothing. _(2026-08-26)_
 - Updated to `marco-core` 1.3.3. _(2026-08-26)_
 
 ### Fixed
-- Polo finds its assets under any install prefix, not just the two that were hardcoded. The search now also tries `<exe_dir>/../share/`, which is what makes a Flatpak install work — it lands under `/app`, matching neither literal path, and the viewer exited at startup rather than starting without themes. The new candidate is searched last, so a `.deb` install still prefers a user-local asset tree over the system one. _(2026-08-26)_
+- Polo finds its assets under any install prefix, not just the two that were hardcoded. The search now also tries `<exe_dir>/../share/`, so an install rooted somewhere other than `/usr` — under `/opt`, say — finds its themes instead of exiting at startup. The new candidate is searched last, so a `.deb` install still prefers a user-local asset tree over the system one. _(2026-08-26)_
 
 ## [0.25.0] - 2026-08-20
 

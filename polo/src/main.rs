@@ -56,38 +56,6 @@ use std::sync::{Arc, RwLock};
 
 const APP_ID: &str = "io.github.ranrar.Polo";
 
-/// Application ID used when running inside Flatpak.
-///
-/// Polo's Flatpak is `io.github.ranrar.Marco.Polo`, and this must match it
-/// exactly: WebKitGTK derives its sandboxed web-process bus name from the
-/// application ID, and the accessibility portal rejects any name not prefixed
-/// by the Flatpak app ID, killing the web process and taking Polo down with it:
-///
-/// ```text
-/// Portal call failed: Invalid sandbox a11y own name:
-/// 'io.github.ranrar.Polo.Sandboxed.WebProcess-...' doesn't match app id
-/// ```
-///
-/// A `--own-name` grant in the manifest does not help — that fixes session-bus
-/// registration, while this check compares against the application ID itself.
-#[cfg(target_os = "linux")]
-const APP_ID_FLATPAK: &str = "io.github.ranrar.Marco.Polo";
-
-/// The application ID to register with.
-///
-/// Flatpak always mounts `/.flatpak-info` inside the sandbox, so its presence
-/// is the standard way to detect that we are running in one. Outside Flatpak
-/// this returns [`APP_ID`] unchanged, leaving the .deb and Windows builds on
-/// their existing ID.
-fn app_id() -> &'static str {
-    #[cfg(target_os = "linux")]
-    if std::path::Path::new("/.flatpak-info").exists() {
-        return APP_ID_FLATPAK;
-    }
-
-    APP_ID
-}
-
 /// Centralized fatal error handler
 ///
 /// This function handles unrecoverable errors during application initialization.
@@ -214,7 +182,7 @@ fn main() -> glib::ExitCode {
     // Icon font support removed - icon fonts (IcoMoon) are no longer used; use inline SVGs instead.
 
     let app = Application::builder()
-        .application_id(app_id())
+        .application_id(APP_ID)
         .flags(gio::ApplicationFlags::HANDLES_OPEN | gio::ApplicationFlags::HANDLES_COMMAND_LINE)
         .build();
 

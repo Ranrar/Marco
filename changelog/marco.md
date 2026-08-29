@@ -9,14 +9,11 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 
 ## [Unreleased]
 
-### Added
-- Marco is D-Bus activatable, so Polo can hand it a document and have it start on demand rather than needing to already be running. _(2026-08-26)_
-
 ### Changed
 - Updated to `marco-core` 1.3.3. _(2026-08-26)_
 
 ### Fixed
-- Marco finds its assets under any install prefix, not just the two that were hardcoded. The search now also tries `<exe_dir>/../share/`, which is what makes a Flatpak install work — it lands under `/app`, matching neither literal path, and the editor exited at startup rather than starting without themes. The new candidate is searched last, so a `.deb` install still prefers a user-local asset tree over the system one. _(2026-08-26)_
+- Marco finds its assets under any install prefix, not just the two that were hardcoded. The search now also tries `<exe_dir>/../share/`, so an install rooted somewhere other than `/usr` — under `/opt`, say — finds its themes instead of exiting at startup. The new candidate is searched last, so a `.deb` install still prefers a user-local asset tree over the system one. _(2026-08-26)_
 
 ## [0.25.0] - 2026-08-20
 
@@ -49,7 +46,7 @@ _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 2d3
 
 ### Added
 - **Windows installer.** Releases now ship a `_setup.exe` alongside the portable zip, built with Inno Setup. It installs per user by default, so it needs no administrator rights, and can be run elevated for an all-users install instead. It creates Start Menu entries for Marco and Polo, offers optional desktop shortcuts, and registers a proper uninstaller. The portable zip is unchanged and remains the right choice if you want everything to live in one folder you can carry around. _(2026-08-18)_
-- **"System default" colour mode.** Settings → Appearance → Light/Dark Mode gains a third option that follows the operating system, and follows it *live* — flipping your desktop between light and dark reskins Marco as it happens, without a restart. On Linux this reads the XDG Desktop Portal's `color-scheme` preference (the same key GNOME, KDE and Flatpak sandboxes publish); on Windows it reads `AppsUseLightTheme` and watches the registry key for changes. A desktop that exposes neither still resolves correctly at startup, it just stops tracking afterwards. _(2026-08-17)_
+- **"System default" colour mode.** Settings → Appearance → Light/Dark Mode gains a third option that follows the operating system, and follows it *live* — flipping your desktop between light and dark reskins Marco as it happens, without a restart. On Linux this reads the XDG Desktop Portal's `color-scheme` preference (the same key GNOME and KDE publish); on Windows it reads `AppsUseLightTheme` and watches the registry key for changes. A desktop that exposes neither still resolves correctly at startup, it just stops tracking afterwards. _(2026-08-17)_
 - **Dead link and image detection.** Every local link, image and link-definition destination is resolved against the document's own directory and checked against the filesystem. A destination with nothing at it is reported as a warning — underlined in the editor, listed in the footer issues panel, and explained on hover — as `MD206` for a broken link and `MD404` for a broken image. Remote URLs are never fetched (that would mean a network request per keystroke), `#fragments` point inside the rendered document rather than at a file, and an unsaved document is not judged at all, because a relative path has no directory to resolve against until it is saved. _(2026-08-17)_
 - Clicking a link whose target is missing now says so, naming the path it looked for, instead of opening a confirmation dialog whose only possible outcome was a blank page. _(2026-08-17)_
 - **Save As rebases local paths.** Saving a document to a new location rewrites every local link, image and link-definition path so it still points at the same file: the absolute paths an unsaved document carries become relative ones, and a document moved elsewhere gets its relative paths recomputed. The editor is updated to match what was written, as a single undoable action. Remote URLs, data URIs, in-document anchors and paths that cannot be resolved are left exactly as you wrote them. _(2026-08-17)_
