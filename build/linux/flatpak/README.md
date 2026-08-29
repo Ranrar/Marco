@@ -167,6 +167,54 @@ on machines that already have the flathub remote configured.
 flatpak install ./marco_0.25.0_linux_amd64.flatpak
 ```
 
+### In CI
+
+Two things run on a runner, and they are not the same thing.
+
+`.github/workflows/ci-flatpak.yml` is **automatic** — pull requests, and pushes
+to `main`, filtered to the paths that can affect a bundle. It dry-runs both apps
+as a matrix: build and finish each one into a build directory, lint it, and
+check what actually landed inside. No repo, no bundle, no install, no publish.
+`flatpak-builder` without `--repo` stops exactly at the point where there is
+something real to inspect and nothing to ship. It builds the **local** manifests
+only; the `.flathub.yml` variants build a tagged remote commit, which is by
+definition not the code under review, so they are linted in the submission
+layout but not built.
+
+Its last step is the one worth knowing about: a build can succeed while quietly
+shipping the wrong thing. It asserts the desktop file, metainfo, licence, icon
+and all three asset directories are present, and that the D-Bus service file
+matches `DBusActivatable=` — installed for Marco, absent for Polo. A partial
+asset root is rejected silently at startup rather than at build time, which is
+the failure this catches.
+
+`flatpak-release-marco.yml` and `flatpak-release-polo.yml` are **manual**, one
+app per workflow, **`workflow_dispatch` only** — releases are cut by hand and
+nothing there tags or publishes.
+
+| Input | Meaning |
+|---|---|
+| `ref` | Ref to build. Empty means the ref the run was started from |
+| `manifest` | `local` (default) builds the working tree; `flathub` builds the tagged commit offline against `cargo-sources.json`, exactly as Flathub's builder will |
+| `attach_to_release` + `release_tag` | Opt in to `gh release upload` onto a release that already exists |
+
+The bundle lands as a workflow artifact either way. Three checks run before it:
+`cargo-sources.json` is compared crate-by-crate against `Cargo.lock` and the run
+fails if they have drifted; `manifest` mode refuses to build while the
+`.flathub.yml` still carries the placeholder commit sha; and
+`.github/scripts/flatpak-lint.sh` runs the linter on both the manifest and the
+build directory, tolerating only `finish-args-home-filesystem-access` and
+`appstream-external-screenshot-url` and failing on anything else.
+
+`manifest: flathub` stages the manifest into a temporary directory renamed to
+the app ID with `cargo-sources.json` beside it. Both are required: the linter
+rejects a filename that does not match the app ID, and the manifest's
+`- cargo-sources.json` source resolves relative to its own directory, one level
+below where the file actually lives in this repository.
+
+What CI cannot cover is §5's cross-launch matrix — Polo's handover to Marco
+needs a session bus with an installed Marco on it. That stays a manual check.
+
 ---
 
 ## 4. Sandbox permissions
@@ -355,7 +403,7 @@ must change the other.
 
 | Item | Impact | Where |
 |---|---|---|
-| `.github/workflows/release.yml` is deleted in the working tree | No tagged-release pipeline for a Flathub manifest to point at | `.github/workflows/` |
+| Releases are cut by hand | `release.yml` was removed deliberately. Nothing tags, and nothing publishes a GitHub release — `flatpak-release-marco.yml` and `flatpak-release-polo.yml` only build and verify, on manual dispatch | `.github/workflows/` |
 | `xdg-open` hands the host a sandbox-only path | The log-folder button in settings does nothing under Flatpak; use `UriLauncher` | `marco/src/ui/settings/tabs/debug.rs` |
 | Recent-files entries rot for portal-opened files | Absolute `/run/user/<uid>/doc/…` paths are not stable across sessions | `marco-shared/src/paths/polo.rs` |
 | `marco-shared/build.rs` copies `fonts` and `documentation`, which do not exist, and never copies `img/` | Pre-existing, not Flatpak-specific; anything rendering from `assets/img/` is already broken in installed builds | `marco-shared/build.rs`, `build_deb.sh` |

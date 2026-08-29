@@ -1,0 +1,233 @@
+# Dry-run both Flatpaks, automatically.
+#
+# DRY RUN means: build and finish each app into a build directory, then lint it.
+# Nothing is exported to an OSTree repo, nothing is bundled, nothing is
+# installed, and nothing is published. `flatpak-builder` without `--repo` stops
+# after finishing the build directory, which is exactly far enough for
+# `flatpak-builder-lint builddir` to have something real to inspect.
+#
+# The two release workflows -- flatpak-release-marco.yml and
+# flatpak-release-polo.yml -- are the ones that produce artifacts, and they stay
+# manual. This one only answers "does it still build, and is it still clean".
+#
+# Both apps run in parallel as a matrix, and neither is allowed to mask the
+# other: fail-fast is off, so a broken Marco still tells you about Polo.
+#
+# Only the LOCAL manifests are built. The .flathub.yml variants build a tagged
+# commit from the remote repository, which is by definition not the code in a
+# pull request -- so they are linted here (staged the way Flathub will see them)
+# but not built. Building those is what flatpak-release-*.yml does with
+# `manifest: flathub`, after a release is tagged.
+#
+# Paths are filtered because this is not a cheap job: it downloads the GNOME 50
+# runtime and SDK and compiles the workspace twice, once per sandbox. A change
+# that cannot affect either bundle should not pay for it.
+
+name: CI (Flatpak dry run)
+
+# The two `paths:` lists are duplicated on purpose -- GitHub Actions does not
+# support YAML anchors, so they cannot be shared. Change one, change the other.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "marco/**"
+      - "polo/**"
+      - "marco-shared/**"
+      - "build/linux/flatpak/**"
+      - "build/version.json"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "LICENSE"
+      - ".github/workflows/ci-flatpak.yml"
+      - ".github/scripts/flatpak-lint.sh"
+  pull_request:
+    paths:
+      - "marco/**"
+      - "polo/**"
+      - "marco-shared/**"
+      - "build/linux/flatpak/**"
+      - "build/version.json"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "LICENSE"
+      - ".github/workflows/ci-flatpak.yml"
+      - ".github/scripts/flatpak-lint.sh"
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: ci-flatpak-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dry-run:
+    name: Dry-run build (${{ matrix.app }})
+    runs-on: ubuntu-24.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: Marco
+            id: io.github.ranrar.Marco
+            dir: build/linux/flatpak/marco
+          - app: Polo
+            id: io.github.ranrar.Marco.Polo
+            dir: build/linux/flatpak/polo
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Flatpak and the GNOME 50 runtime
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak
+
+          flatpak remote-add --user --if-not-exists \
+            flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+          # Same pins as the manifests and the release workflows; see
+          # build/linux/flatpak/README.md section 2.
+          flatpak install --user -y --noninteractive flathub \
+            org.flatpak.Builder \
+            org.gnome.Platform//50 \
+            org.gnome.Sdk//50 \
+            org.freedesktop.Sdk.Extension.rust-stable//25.08
+
+      - name: Check cargo-sources.json against Cargo.lock
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, re, sys
+
+          src = json.load(open("build/linux/flatpak/cargo-sources.json"))
+          vendored = {
+              e["dest"].removeprefix("cargo/vendor/")
+              for e in src
+              if e.get("type") == "archive" and e.get("dest", "").startswith("cargo/vendor/")
+          }
+
+          lock = open("Cargo.lock").read()
+          pkgs = re.findall(
+              r'\[\[package\]\]\nname = "([^"]+)"\nversion = "([^"]+)"\n(?:source = "([^"]+)"\n)?',
+              lock,
+          )
+          locked = {f"{n}-{v}" for n, v, s in pkgs if s.startswith("registry+")}
+
+          missing = sorted(locked - vendored)
+          stale = sorted(vendored - locked)
+          if missing or stale:
+              print("cargo-sources.json does not match Cargo.lock.")
+              print("  missing (in the lockfile, not vendored):", missing)
+              print("  stale (vendored, not in the lockfile):  ", stale)
+              print()
+              print("Regenerate it -- build/linux/flatpak/README.md section 6 -- and commit.")
+              sys.exit(1)
+
+          print(f"cargo-sources.json is in step with Cargo.lock ({len(locked)} crates).")
+          PY
+
+      - name: Validate the metainfo
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends appstream
+
+          # `cid-contains-uppercase-letter` is the one expected pedantic hint and
+          # must NOT be "fixed": lowercasing the ID breaks Flathub's ownership
+          # check. --strict does not fail on pedantic findings.
+          appstreamcli validate --strict "${{ matrix.dir }}/${{ matrix.id }}.metainfo.xml"
+
+      - name: Lint the local manifest
+        run: |
+          set -euo pipefail
+          bash .github/scripts/flatpak-lint.sh \
+            manifest "${{ matrix.dir }}/${{ matrix.id }}.yml"
+
+      - name: Lint the Flathub manifest
+        run: |
+          set -euo pipefail
+          # Staged into the submission layout -- named after the app ID, with
+          # cargo-sources.json beside it. Linted in place it fails on both
+          # counts, which says nothing about the manifest itself.
+          #
+          # Not built here: its source is a tagged commit in the remote
+          # repository, so it would build something other than this ref.
+          stage="${RUNNER_TEMP}/flathub"
+          mkdir -p "$stage"
+          cp "${{ matrix.dir }}/${{ matrix.id }}.flathub.yml" "${stage}/${{ matrix.id }}.yml"
+          cp build/linux/flatpak/cargo-sources.json           "${stage}/"
+
+          bash .github/scripts/flatpak-lint.sh \
+            manifest "${stage}/${{ matrix.id }}.yml"
+
+      - name: Build (no repo, no bundle, no install)
+        run: |
+          set -euo pipefail
+          # No --repo: the build stops once the build directory is finished.
+          # No --install and no build-bundle either -- this is a dry run.
+          flatpak run --filesystem=host org.flatpak.Builder \
+            --force-clean \
+            --user \
+            --install-deps-from=flathub \
+            --state-dir="${RUNNER_TEMP}/state" \
+            "${RUNNER_TEMP}/build" \
+            "${{ matrix.dir }}/${{ matrix.id }}.yml"
+
+      - name: Lint the build directory
+        run: |
+          set -euo pipefail
+          bash .github/scripts/flatpak-lint.sh \
+            builddir "${RUNNER_TEMP}/build"
+
+      - name: Check what was installed into the sandbox
+        run: |
+          set -euo pipefail
+          # A build can succeed while quietly shipping the wrong thing: the
+          # asset root is the usual one. is_valid_asset_root() needs icons/,
+          # themes/ AND language/ together, and a partial copy is rejected
+          # silently at startup rather than at build time.
+          files="${RUNNER_TEMP}/build/files"
+
+          missing=0
+          for path in \
+              "share/applications/${{ matrix.id }}.desktop" \
+              "share/metainfo/${{ matrix.id }}.metainfo.xml" \
+              "share/licenses/${{ matrix.id }}/LICENSE" \
+              "share/icons/hicolor/256x256/apps/${{ matrix.id }}.png" \
+              "share/markdowncomposer/icons" \
+              "share/markdowncomposer/themes" \
+              "share/markdowncomposer/language" \
+          ; do
+            if [ -e "${files}/${path}" ]; then
+              echo "  ok      ${path}"
+            else
+              echo "::error::missing from the build: ${path}"
+              missing=1
+            fi
+          done
+
+          # Marco is D-Bus activatable and Polo is not; the service file must
+          # follow that, and `build-export` treats the mismatch as a hard error.
+          service="${files}/share/dbus-1/services/${{ matrix.id }}.service"
+          if grep -q '^DBusActivatable=true' "${files}/share/applications/${{ matrix.id }}.desktop"; then
+            if [ -f "$service" ]; then
+              echo "  ok      D-Bus service file, matching DBusActivatable=true"
+            else
+              echo "::error::desktop file sets DBusActivatable=true but no service file was installed"
+              missing=1
+            fi
+          elif [ -f "$service" ]; then
+            echo "::error::a D-Bus service file is installed but the desktop file is not activatable"
+            missing=1
+          else
+            echo "  ok      no D-Bus service file, and none expected"
+          fi
+
+          exit "$missing"
