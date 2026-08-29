@@ -10,7 +10,6 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ## [Unreleased]
 
 ### Added
-- **Flatpak packaging.** Marco now builds as a Flatpak, `io.github.ranrar.Marco`, separately from Polo, which has its own. Not on Flathub yet — for now `build/linux/flatpak/build_flatpak_marco.sh` produces an installable bundle. The `.deb` is unchanged and still ships both applications in one package. _(2026-08-26)_
 - Marco is D-Bus activatable, so Polo can hand it a document and have it start on demand rather than needing to already be running. _(2026-08-26)_
 
 ### Changed

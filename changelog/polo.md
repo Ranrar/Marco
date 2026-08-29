@@ -10,7 +10,6 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ## [Unreleased]
 
 ### Added
-- **Polo can be installed on its own.** It now ships as its own Flatpak, `io.github.ranrar.Marco.Polo`, separate from Marco's. Install the viewer without the editor, the editor without the viewer, or both. Not on Flathub yet — for now `build/linux/flatpak/build_flatpak_polo.sh` produces an installable bundle. The `.deb` is unchanged and still ships both applications in one package. _(2026-08-26)_
 - **"Open in Marco" when Marco is not installed.** The action previously assumed the editor was sitting next to the viewer, because it always was. Polo now checks whether Marco can actually be reached, and the dialog says what it finds: with Marco present you still get **DualView** and **Editor and View Separate**; without it you get **Install Marco**, which opens Marco's store page. The check runs each time the dialog opens, so installing Marco while Polo is running takes effect on the next click — no restart needed. Where Marco is neither present nor installable, the toolbar button stays greyed out and its tooltip explains why, instead of failing silently when clicked. _(2026-08-26)_
 
 ### Changed

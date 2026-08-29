@@ -3,10 +3,16 @@ target
 target-windows
 target-linux
 
-# Build artifacts
-build/installer
-build/linux/flatpak/_build
-build/linux/flatpak/_repo
+# Packaging and build artifacts, kept local on purpose -- nothing under build/
+# is published. That includes the Debian and Windows scripts, version.json, and
+# the whole Flatpak tree.
+#
+# Flathub still works: the submitted manifests are self-contained. They carry
+# the desktop file, metainfo, icon and D-Bus service file as their own sources,
+# so nothing here has to exist in the tagged source tree -- Flathub builds the
+# Rust code and LICENSE, nothing else. Reference copies of what was submitted
+# live in build/linux/flatpak/{marco,polo}/*.flathub.yml on the working copy.
+build/
 
 # internal dev code
 .dev
