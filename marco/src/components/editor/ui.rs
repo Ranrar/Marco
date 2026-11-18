@@ -329,6 +329,9 @@ pub fn create_editor_with_preview_and_buffer(
     editor_widget.set_hexpand(true);
     editor_widget.set_vexpand(true);
 
+    // Vim key bindings; stays inactive until the "vim_mode" setting is on.
+    crate::components::editor::vim::attach(&source_view, &editor_widget);
+
     // Editor widget goes directly as the start child of the outer editor/preview paned.
     // The TOC panel will be wired at the outermost level after the preview is set up.
     paned.set_start_child(Some(&editor_widget));

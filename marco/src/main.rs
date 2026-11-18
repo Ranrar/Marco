@@ -925,6 +925,14 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             .unwrap_or(true);
         crate::logic::tables::set_table_auto_align(table_auto_align);
 
+        // Apply vim mode setting at startup (off by default).
+        let vim_mode = settings_manager
+            .get_settings()
+            .editor
+            .and_then(|e| e.vim_mode)
+            .unwrap_or(false);
+        crate::components::editor::vim::set_vim_mode_globally(vim_mode);
+
         // Apply saved text direction (LTR/RTL) to the entire application at startup.
         let is_rtl = crate::logic::rtl::is_rtl_from_settings(&settings_manager);
         crate::logic::rtl::apply_text_direction(is_rtl, &window, &editor_source_view);

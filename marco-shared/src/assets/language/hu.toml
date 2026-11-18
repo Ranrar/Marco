@@ -410,6 +410,8 @@ syntax_colors_label = "Szintaxis színezés"
 syntax_colors_description = "Markdown szintaxis alapú színezés engedélyezése vagy tiltása."
 table_auto_align_label = "Táblázatok automatikus igazítása"
 table_auto_align_description = "Oszlopok automatikus igazítása Tab, Enter vagy kurzormozgatás után."
+vim_mode_label = "Vim mód"
+vim_mode_description = "Vim billentyűk használata a szerkesztőben."
 
 [settings.intelligence]
 section_intelligence = "Intelligencia"

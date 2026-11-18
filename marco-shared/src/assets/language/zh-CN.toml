@@ -402,6 +402,8 @@ syntax_colors_label = "语法着色"
 syntax_colors_description = "启用或禁用 Markdown 语法着色。"
 table_auto_align_label = "表格自动对齐"
 table_auto_align_description = "在表格中按 Tab、Enter 或移出光标时自动对齐列。"
+vim_mode_label = "Vim 模式"
+vim_mode_description = "在编辑器中使用 Vim 按键。"
 [settings.intelligence]
 section_intelligence = "智能辅助"
 intro_description = "理解 Markdown 文档并提供反馈的工具。"

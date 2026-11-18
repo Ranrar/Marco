@@ -414,6 +414,8 @@ syntax_colors_label = "Syntax Colors"
 syntax_colors_description = "Enable or disable syntax-based color highlighting for Markdown."
 table_auto_align_label = "Auto-Align Tables"
 table_auto_align_description = "Automatically realign table columns when pressing Tab, Enter, or moving the cursor outside a table."
+vim_mode_label = "Vim Mode"
+vim_mode_description = "Use Vim key bindings in the editor."
 
 [settings.intelligence]
 section_intelligence = "Intelligence"

@@ -419,6 +419,8 @@ pub(crate) fn load_default_translations() -> Translations {
                 syntax_colors_description: "Enable or disable syntax-based color highlighting for Markdown.".to_string(),
                 table_auto_align_label: "Auto-Align Tables".to_string(),
                 table_auto_align_description: "Automatically realign table columns when pressing Tab, Enter, or moving the cursor outside a table.".to_string(),
+                vim_mode_label: "Vim Mode".to_string(),
+                vim_mode_description: "Use Vim key bindings in the editor.".to_string(),
             },
             intelligence: SettingsIntelligenceTranslations {
                 section_intelligence: "Intelligence".to_string(),
