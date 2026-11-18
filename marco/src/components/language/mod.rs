@@ -565,6 +565,8 @@ pub struct SettingsEditorTranslations {
     pub syntax_colors_description: String,
     pub table_auto_align_label: String,
     pub table_auto_align_description: String,
+    pub vim_mode_label: String,
+    pub vim_mode_description: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -2594,6 +2596,16 @@ impl SimpleLocalizationManager {
                         value,
                         &["settings", "editor", "table_auto_align_description"],
                         &fallback.settings.editor.table_auto_align_description,
+                    ),
+                    vim_mode_label: Self::get_string(
+                        value,
+                        &["settings", "editor", "vim_mode_label"],
+                        &fallback.settings.editor.vim_mode_label,
+                    ),
+                    vim_mode_description: Self::get_string(
+                        value,
+                        &["settings", "editor", "vim_mode_description"],
+                        &fallback.settings.editor.vim_mode_description,
                     ),
                 },
                 intelligence: SettingsIntelligenceTranslations {

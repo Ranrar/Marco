@@ -30,7 +30,7 @@ gtk4 = { version = "=0.11.4", features = ["v4_12"] }
 glib = "0.22.5"
 glib-unix = "0.22.0"
 gio = "0.22.5"
-sourceview5 = "0.11.1"
+sourceview5 = { version = "0.11.1", features = ["v5_4"] }
 dark-light = "3.0.0"
 # Awaitable channel for handing background-thread events to the GTK main loop.
 async-channel = "2.5.0"

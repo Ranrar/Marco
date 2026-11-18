@@ -9,6 +9,9 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 
 ## [Unreleased]
 
+### Added
+- **Vim mode.** A new **Vim Mode** switch in Preferences > Editor turns on Vim key bindings in the editor: Normal, Insert and Visual modes, motions, operators, `/` search and the `:w`, `:q`, `:wq` commands. It is built on GtkSourceView's own Vim emulation and is off by default. Pending keys and the `:` command line show in a status line under the editor. _(2026-11-18)_
+
 ### Changed
 - Updated to `marco-core` 1.3.3. _(2026-08-26)_
 

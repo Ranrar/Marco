@@ -12,6 +12,7 @@
 //! - `scroll_sync` - Scroll synchronization between editor and preview
 //! - `sourceview` - SourceView5 rendering and configuration
 //! - `utilities` - Async extension processing (line wrapping, tab conversion, etc.)
+//! - `vim` - Vim key bindings through GtkSourceView's `VimIMContext`
 
 pub mod contextmenu;
 pub mod debounce;
@@ -26,3 +27,4 @@ pub mod sourceview;
 pub mod table_edit;
 pub mod ui;
 pub mod utilities;
+pub mod vim;

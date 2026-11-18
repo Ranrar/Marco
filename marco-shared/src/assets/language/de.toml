@@ -411,6 +411,8 @@ syntax_colors_label = "Syntaxfarben"
 syntax_colors_description = "Syntaxbasierte Farb-Hervorhebung für Markdown aktivieren oder deaktivieren."
 table_auto_align_label = "Tabellen automatisch ausrichten"
 table_auto_align_description = "Tabellenspalten beim Drücken von Tab, Enter oder beim Verlassen der Tabelle mit dem Cursor automatisch neu ausrichten."
+vim_mode_label = "Vim-Modus"
+vim_mode_description = "Vim-Tastenbelegung im Editor verwenden."
 
 [settings.intelligence]
 section_intelligence = "Intelligenz"

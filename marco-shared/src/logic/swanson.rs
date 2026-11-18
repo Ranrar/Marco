@@ -734,6 +734,8 @@ pub struct EditorSettings {
     pub diagnostics_filter: Option<DiagnosticsFilterSettings>,
     /// Auto-align table columns on Tab/Enter while editing inside a table.
     pub table_auto_align: Option<bool>,
+    /// Edit with Vim key bindings (sourceview5 `VimIMContext`). Off by default.
+    pub vim_mode: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

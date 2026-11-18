@@ -602,6 +602,51 @@ pub fn build_editor_tab(
     );
     container.append(&table_auto_align_row);
 
+    // Vim Mode (Toggle)
+    let vim_mode_switch = Switch::new();
+    vim_mode_switch.add_css_class("marco-switch");
+
+    let current_vim_mode = settings_manager_opt
+        .as_ref()
+        .and_then(|sm| sm.get_settings().editor)
+        .and_then(|e| e.vim_mode)
+        .unwrap_or(false);
+    vim_mode_switch.set_active(current_vim_mode);
+
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
+        vim_mode_switch.connect_state_set(move |_switch, state| {
+            let enabled = state;
+            debug!("Vim mode changed to: {}", enabled);
+
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                if settings.editor.is_none() {
+                    settings.editor = Some(EditorSettings::default());
+                }
+                if let Some(ref mut editor) = settings.editor {
+                    editor.vim_mode = Some(enabled);
+                }
+            }) {
+                error!("Failed to save vim mode setting: {}", e);
+                return glib::Propagation::Proceed;
+            }
+
+            crate::components::editor::vim::set_vim_mode_globally(enabled);
+
+            glib::Propagation::Proceed
+        });
+    }
+
+    let vim_mode_row = add_setting_row_i18n(
+        i18n,
+        &translations.vim_mode_label,
+        &translations.vim_mode_description,
+        Rc::new(|t: &Translations| t.settings.editor.vim_mode_label.clone()),
+        Rc::new(|t: &Translations| t.settings.editor.vim_mode_description.clone()),
+        &vim_mode_switch,
+        false,
+    );
+    container.append(&vim_mode_row);
+
     // Show Line Numbers (Toggle)
     let line_numbers_switch = Switch::new();
     line_numbers_switch.add_css_class("marco-switch");
